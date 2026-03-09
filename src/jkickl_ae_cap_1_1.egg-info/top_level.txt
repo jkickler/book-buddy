@@ -1,5 +1,0 @@
-api
-graph
-ui
-utils
-vectorstore
