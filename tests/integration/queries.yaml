@@ -1,0 +1,76 @@
+test_sets:
+  - name: "recommendation variations"
+    description: "Different ways to ask for recommendations"
+    queries:
+      - id: "profile_recommendation_1"
+        query: "Recommend books for me"
+        expected_tools: [recommend_by_profile]
+
+      - id: "profile_recommendation_2"
+        query: "Hey can you recommend books based on my uploaded books?"
+        expected_tools: [recommend_by_profile]
+
+      - id: "profile_recommendation_3"
+        query: "What books fit my taste?"
+        expected_tools: [recommend_by_profile]
+
+      - id: "profile_recommendation_4"
+        query: "Suggest books based on what I've read"
+        expected_tools: [recommend_by_profile]
+
+      - id: "profile_recommendation_5"
+        query: "What should I read next?"
+        expected_tools: [recommend_by_profile]
+
+  - name: "book check variations"
+    description: "Different ways to check if a book fits"
+    queries:
+      - id: "book_check_title_author"
+        query: "What do you think about The Hobbit by J.R.R. Tolkien?"
+        expected_tools: [enrich_and_score]
+
+      - id: "book_check_title_only"
+        query: "Does Dune fit my taste?"
+        expected_tools: [enrich_and_score]
+
+      - id: "book_check_author_only"
+        query: "What about some Stephen King books?"
+        expected_tools: []
+
+      - id: "book_check_isbn"
+        query: "Tell me about ISBN 9780345339706"
+        expected_tools: [enrich_and_score]
+
+      - id: "book_check_partial_title"
+        query: "How about Foundation?"
+        expected_tools: []
+
+  - name: "utility queries"
+    description: "Test conversation flow - LLM should see previous messages"
+    queries:
+      - id: "follow_up_query"
+        query: "What about something similar?"
+        expected_tools: []
+
+  - name: "edge cases"
+    description: "Ambiguous or minimal inputs"
+    queries:
+      - id: "ambiguous_1"
+        query: "hello"
+        expected_tools: []
+
+      - id: "ambiguous_2"
+        query: "books"
+        expected_tools: []
+
+      - id: "ambiguous_3"
+        query: "recommend"
+        expected_tools: []
+
+      - id: "ambiguous_4"
+        query: "I want something good"
+        expected_tools: []
+
+      - id: "ambiguous_5"
+        query: "?"
+        expected_tools: []

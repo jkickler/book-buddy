@@ -1,0 +1,202 @@
+Metadata-Version: 2.4
+Name: jkickl-ae-cap-1-1
+Version: 0.1.0
+Summary: Add your description here
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+Requires-Dist: jupyter>=1.1.1
+Requires-Dist: langchain>=1.2.9
+Requires-Dist: langchain-openai>=1.1.7
+Requires-Dist: langgraph>=1.0.8
+Requires-Dist: chromadb>=0.5.5
+Requires-Dist: requests>=2.32.3
+Requires-Dist: streamlit>=1.37.1
+Requires-Dist: pytest>=8.3.2
+Requires-Dist: langchain-chroma>=0.1.0
+Requires-Dist: rapidfuzz>=3.14.3
+Requires-Dist: pandas>=2.2.2
+Requires-Dist: langsmith>=0.6.9
+Requires-Dist: langgraph-cli[inmem]>=0.4.12
+
+# Project scope:
+
+# Todo:
+- check for todo in files
+- implement logging with Codex, take as base the last project
+- add work key and editions logic to the api
+- Prüfung hey dieses Buch hast du bereits gelesen, willst du ein anderes Buch suchen?
+- Functionalyity to add books to existing vector store
+- Prompt verändern, damit model besser antwortet
+- Logging und vielleicht LangSmith
+
+
+
+Nodes:
+"Does book X fit to my taste?"
+- intent classifier - Extract intent and if applicable book titles
+- Get meta data from book via API
+- Enrich information
+- Embed information
+- Compare embedded information with embedded books in vector store
+- Return result and score
+
+"Which similar books fit to my taste?"
+- Extract information from user prompt.
+- get subjects from books stored in vector store
+- Deduplicate subjects 
+- Embed information
+- Compare embedded information with embedded books in vector store
+- Return result and score
+
+
+
+
+# Kannst du jetzt unsere Entscheidungen noch mal zusammenfassen bitte?
+
+Ja – hier ist die Zusammenfassung unserer Entscheidungen (MVP + Architektur + Agent-Rolle), so dass du in 2–3 Wochen realistisch liefern kannst.
+
+## 1) MVP-Ziel \& Usecases
+
+- Wir bauen **zwei Flows** als MVP:
+
+1) **„Passt Buch X zu mir?“** (Fit-Check + Erklärung; optional Alternativen)
+2) **„Welche ähnlichen Bücher passen zu meinem Geschmack?“** (personalisierte Empfehlungen)
+- Alles andere (z.B. vollständige Author-Bibliografie, Tavily/Wikipedia) ist **Phase 2**.
+
+
+## 2) Datenstrategie (Kernentscheidung)
+
+- In der Vektordatenbank liegen **primär deine gelesenen/gelikten Bücher** (User-Profil) – nicht ein globaler Buchkatalog.
+- Neue Empfehlungen entstehen über **Candidate Generation aus APIs** (z.B. OpenLibrary Subjects / Search, optional Google Books) und danach **Ranking gegen dein Profil**.
+
+
+## 3) Candidate Generation (wie kommen neue Bücher rein?)
+
+- Primär über **OpenLibrary Subjects**: aus Subjects des Zielbuchs (Flow 1) oder aus Top-Subjects deines Profils (Flow 2) ziehen wir „works“ als Kandidaten.
+- Expansion, wenn zu wenige Kandidaten: related Subjects (über „details=true“) nutzen.
+- Fallback: OpenLibrary Search (Keyword/Subject-Key Query).
+- Google Books nutzen wir vor allem zum **Enrichment** (Beschreibung/Categories/Cover), damit Embeddings besser werden.
+
+
+## 4) Embeddings \& Ranking (wie wird personalisiert?)
+
+- Kandidaten werden als Textrepräsentation (Titel, Autor, Subjects/Categories, Beschreibung) embedded.
+- Matching erfolgt gegen dein Profil mit einer einfachen Strategie:
+    - bevorzugt **MaxSim** gegen Top-N Lieblingsbücher (robuster bei mehreren Genres),
+    - alternativ Centroid/Profil-Vektor.
+- „Already read“ wird herausgefiltert, Dubletten werden gemerged.
+
+
+## 5) Agent-Architektur (wichtig: Agent entscheidet \#2)
+
+Du hast gesagt, dir ist besonders wichtig: **Agent entscheidet Ranking/Erklärung/Diversität**.
+
+Daher:
+
+- **Retrieval/Candidate-Generation**: eher deterministisch (oder strikt budgetiert), damit stabil und testbar.
+- **Rerank/Synthesizer-Agent**: trifft die „intelligenten“ Entscheidungen:
+    - finale Top‑N Auswahl,
+    - Diversität (nicht 10× gleiches Subgenre/Autor),
+    - Begründungen („passt zu dir weil … ähnlich zu …“),
+    - optional „Reihen/Sequels vermeiden“, wenn nicht gewünscht.
+
+
+## 6) Tooling-Entscheidung (was darf das LLM wirklich steuern?)
+
+- Wir geben dem LLM **nicht** viele Low-Level Tools (DB upsert, Embedding einzeln, etc.).
+- Stattdessen bekommt es für MVP nur:
+    - ein Tool, das **rankbare Kandidaten + Base-Scores + Profilsummary** liefert (Over-retrieval + baseline scoring kapselt alles Technische),
+    - und ein „Output/Sink“ (oder structured JSON output), in dem der Agent die **Re-Ranking-Entscheidung** ablegt.
+- Dadurch bleibt der Agent „autonom“ in der Entscheidung, aber die Pipeline bleibt robust.
+
+
+## 7) Flow 1 – wichtiges Detail
+
+- In „Passt Buch X zu mir?“ sind zusätzliche Kandidaten **optional**.
+- Mittelweg: Kandidaten nur generieren, wenn Fit mittel/niedrig ist oder User Alternativen möchte.
+
+
+
+
+
+
+## Tools:
+- Goolge Books API
+- OpenLibrary API
+
+## Agents:
+- Researcher: 
+  - Kümmert sich um die Suche nach zusätzlichen Informationen (Author, Genre), Klappentext
+  - Erstellt ein eigenes kurzes Summary des Buches
+- Librarian:
+  - Durchsucht die Vektordatenbank nach ähnlichen Büchern
+  - Erstellt aus dem Ergebniss des researchers eine Query, womit er die Vektordatenbank nach ähnlichen Titeln durchsucht
+- Summarizer:
+  - Erstellt aus den Ergebnissen des Librarians ein kurzes Summary
+
+
+1) What is the product and who is it for?
+   - Book Recommendation App 
+   - Target audience: users who are trying to find new books, based on there goodreads read list
+2) The core problem it solves (1–2 sentences).
+  - Users can easily and quick find similar books to their goodreads reading list
+3) Key user actions or flows (top 3).  
+  - User questions: Does book X fit to my taste?
+  - User questions: Which similar books fit to my taste? 
+4) MVP vs later features.
+   - MVP
+     - vector store with goodreads reading list
+     - Adding of metadata to each book in vector store
+     - search for book information via Google Books API and OpenLibrary API
+     - Embedding of returned books from search results = candidate books
+     - candidate books to match against embedded books in vector store to check if matching for users taste
+     - Use LLM to answer and route user questions to differnt nodes and summarizes results
+     - Sevearl agents who take over different tasks in the application (number of agents depends on complexity of application)
+   - Future features
+     - Upload further books to vector store
+     - Answer questions like: What similar books has the author X written, which I could like?
+5) Constraints (platform, timeline, budget, compliance).
+  - platform: Streamlit UI, Langgraph and langchain background, vector store ChromaDB
+  - APIs: Google Books API, OpenLibrary API
+  - timeline: 2-3 weeks 
+
+
+## Next Step: Vector Store Upload Implementation
+
+### Backend Functions
+
+**1. Vector Store Initialization Function**
+- Create a function to check if a vector store exists at application startup
+- Function should return boolean indicating vector store status
+- If no vector store exists, trigger the upload workflow
+
+**2. CSV Upload and Processing Function**
+- Accept Goodreads CSV file as input
+- Parse and validate CSV structure
+- Extract book information (titles, authors, ratings, etc.)
+- Count total books for progress tracking
+- Enrich book data with Google Books API information
+- if information from google books api is missing, Fill missing fields with OpenLibrary API data
+- Fill always the "subjects" from Openlibrary API
+- Create embeddings and populate vector store
+- Provide progress callbacks for UI updates
+
+### Frontend UI Components
+
+**1. Application State Management**
+- Check vector store status on app launch
+- Conditionally render either upload page or chat interface
+- Maintain upload state and progress information
+
+**2. Upload Interface (when no vector store exists)**
+- File upload component for Goodreads CSV
+- Progress bar showing upload completion percentage
+- Status display showing:
+  - Number of books found in CSV
+  - Current processing book number
+  - Estimated time remaining
+- Error handling and user feedback messages
+
+**3. Transition Logic**
+- Automatically switch to chat UI after successful upload
+- Store completion status for future app launches 
